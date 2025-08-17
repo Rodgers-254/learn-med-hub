@@ -1,0 +1,81 @@
+{
+  "name": "Obstetric & Gynecologic Manual - Kenya",
+  "short_name": "OG Manual Kenya",
+  "description": "Comprehensive Obstetric and Gynecologic Manual for Kenya Healthcare - Available Offline",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "any",
+  "scope": "/",
+  "prefer_related_applications": false,
+  "display_override": ["window-controls-overlay", "standalone"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3e%3cdefs%3e%3clinearGradient id='grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3e%3cstop offset='0%25' style='stop-color:%230f172a;stop-opacity:1' /%3e%3cstop offset='100%25' style='stop-color:%233730a3;stop-opacity:1' /%3e%3c/linearGradient%3e%3c/defs%3e%3crect width='192' height='192' fill='url(%23grad)' rx='24'/%3e%3cpath d='M96 48c-26.51 0-48 21.49-48 48s21.49 48 48 48 48-21.49 48-48-21.49-48-48-48zm0 8c22.09 0 40 17.91 40 40s-17.91 40-40 40-40-17.91-40-40 17.91-40 40-40z' fill='white'/%3e%3cpath d='M96 72c-13.25 0-24 10.75-24 24s10.75 24 24 24 24-10.75 24-24-10.75-24-24-24zm0 8c8.84 0 16 7.16 16 16s-7.16 16-16 16-16-7.16-16-16 7.16-16 16-16z' fill='%2306b6d4'/%3e%3cpath d='M82 88h28v8H82z' fill='white'/%3e%3cpath d='M92 78h8v28h-8z' fill='white'/%3e%3c/svg%3e",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3e%3cdefs%3e%3clinearGradient id='grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3e%3cstop offset='0%25' style='stop-color:%230f172a;stop-opacity:1' /%3e%3cstop offset='100%25' style='stop-color:%233730a3;stop-opacity:1' /%3e%3c/linearGradient%3e%3c/defs%3e%3crect width='512' height='512' fill='url(%23grad)' rx='64'/%3e%3cpath d='M256 128c-70.69 0-128 57.31-128 128s57.31 128 128 128 128-57.31 128-128-57.31-128-128-128zm0 20c59.65 0 108 48.35 108 108s-48.35 108-108 108-108-48.35-108-108 48.35-108 108-108z' fill='white'/%3e%3cpath d='M256 192c-35.35 0-64 28.65-64 64s28.65 64 64 64 64-28.65 64-64-28.65-64-64-64zm0 20c23.56 0 44 20.44 44 44s-20.44 44-44 44-44-20.44-44-44 20.44-44 44-44z' fill='%2306b6d4'/%3e%3cpath d='M220 240h72v20H220z' fill='white'/%3e%3cpath d='M246 214h20v72h-20z' fill='white'/%3e%3c/svg%3e",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["medical", "education", "health", "productivity"],
+  "lang": "en",
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1280 800'%3e%3cdefs%3e%3clinearGradient id='grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3e%3cstop offset='0%25' style='stop-color:%230f172a;stop-opacity:1' /%3e%3cstop offset='100%25' style='stop-color:%233730a3;stop-opacity:1' /%3e%3c/linearGradient%3e%3c/defs%3e%3crect width='1280' height='800' fill='url(%23grad)'/%3e%3ctext x='640' y='400' text-anchor='middle' fill='white' font-size='48' font-family='Inter'%3eObstetric Manual - Kenya%3c/text%3e%3c/svg%3e",
+      "sizes": "1280x800",
+      "type": "image/svg+xml",
+      "form_factor": "wide",
+      "label": "Desktop view of the Obstetric Manual"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Emergency Protocols",
+      "short_name": "Emergency",
+      "description": "Quick access to emergency obstetric protocols",
+      "url": "/?chapter=obstetric-emergencies-integrated",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3e%3crect width='96' height='96' fill='%23dc2626' rx='12'/%3e%3cpath d='M48 24c-13.25 0-24 10.75-24 24s10.75 24 24 24 24-10.75 24-24-10.75-24-24-24zm0 8c8.84 0 16 7.16 16 16s-7.16 16-16 16-16-7.16-16-16 7.16-16 16-16z' fill='white'/%3e%3cpath d='M42 42h12v6H42z' fill='%23dc2626'/%3e%3cpath d='M45 39h6v12h-6z' fill='%23dc2626'/%3e%3c/svg%3e",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Training Modules",
+      "short_name": "Training",
+      "description": "Access clinical training and simulation content",
+      "url": "/?chapter=bibliography-references",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3e%3crect width='96' height='96' fill='%2306b6d4' rx='12'/%3e%3cpath d='M24 24h48v48H24z' fill='none' stroke='white' stroke-width='3'/%3e%3cpath d='M32 36h32v4H32zm0 8h24v4H32zm0 8h28v4H32z' fill='white'/%3e%3c/svg%3e",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Clinical Procedures",
+      "short_name": "Procedures",
+      "description": "Step-by-step clinical procedure guides",
+      "url": "/?chapter=clinical-procedures-integrated",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3e%3crect width='96' height='96' fill='%2316a34a' rx='12'/%3e%3cpath d='M48 20c-15.46 0-28 12.54-28 28s12.54 28 28 28 28-12.54 28-28-12.54-28-28-28zm0 8c11.05 0 20 8.95 20 20s-8.95 20-20 20-20-8.95-20-20 8.95-20 20-20z' fill='white'/%3e%3cpath d='M40 44h16v8H40z' fill='%2316a34a'/%3e%3cpath d='M44 40h8v16h-8z' fill='%2316a34a'/%3e%3c/svg%3e",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+}
