@@ -4,22 +4,24 @@ import { useParams, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Copy } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabase"; // ✅ use the unified client
 
 const PaymentPage: React.FC = () => {
-  // support BOTH /payment?id=... and /payment/:id
+  // Support BOTH /payment?id=... and /payment/:id
   const { id: routeId } = useParams<{ id: string }>();
   const location = useLocation();
   const qsId = new URLSearchParams(location.search).get("id") || undefined;
   const bookId = routeId ?? qsId;
 
-  const tillNumber = "6392245";
+  const tillNumber = "6886218"; // ✅ your current till number
 
-  const copyTill = () => {
-    navigator.clipboard
-      .writeText(tillNumber)
-      .then(() => alert(`Till number ${tillNumber} copied to clipboard!`))
-      .catch(() => alert(`Could not copy. Please copy manually: ${tillNumber}`));
+  const copyTill = async () => {
+    try {
+      await navigator.clipboard.writeText(tillNumber);
+      alert(`Till number ${tillNumber} copied to clipboard!`);
+    } catch {
+      alert(`Could not copy. Please copy manually: ${tillNumber}`);
+    }
   };
 
   const handlePaid = async () => {
@@ -38,7 +40,7 @@ const PaymentPage: React.FC = () => {
       return;
     }
 
-    // duplicate guard (requires SELECT policy)
+    // Duplicate guard (requires SELECT policy on purchases)
     const { data: existing, error: selErr } = await supabase
       .from("purchases")
       .select("id, confirmed, status")
@@ -53,18 +55,18 @@ const PaymentPage: React.FC = () => {
     }
 
     if (existing) {
-      if (existing.confirmed) {
-        alert("You already own this book ✅");
-      } else {
-        alert("Payment already recorded. Awaiting admin review.");
-      }
+      alert(
+        existing.confirmed
+          ? "You already own this book ✅"
+          : "Payment already recorded. Awaiting admin review."
+      );
       return;
     }
 
-    // insert pending purchase
+    // Insert pending purchase
     const { error: insErr } = await supabase.from("purchases").insert({
-      user_id: user.id,         // uuid
-      book_id: bookId,          // uuid string from URL
+      user_id: user.id,
+      book_id: bookId,
       confirmed: false,
       status: "pending",
     });

@@ -10,9 +10,9 @@ import { Star, Eye, Download, Clock } from "lucide-react";
 type BookRow = {
   id: string;
   title: string;
-  summary?: string;
-  thumbnail_url?: string;
-  book_url?: string;
+  summary?: string | null;
+  thumbnail_url?: string | null;
+  book_url?: string | null;
   price?: number | string | null;
   category?: string | null;
   preview_pages?: number | null;
@@ -27,6 +27,7 @@ const FeaturedBooks: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
+
     const fetchFeatured = async () => {
       try {
         const { data, error } = await supabase
@@ -69,9 +70,8 @@ const FeaturedBooks: React.FC = () => {
       return;
     }
 
-    // ✅ Use query string instead of path
+    // Use query string style route
     navigate(`/payment?id=${bookId}`);
-
   };
 
   return (
@@ -119,12 +119,18 @@ const FeaturedBooks: React.FC = () => {
                       <h3 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors">
                         {book.title}
                       </h3>
-                      <p className="text-sm text-muted-foreground">{book.summary}</p>
+                      {book.summary && (
+                        <p className="text-sm text-muted-foreground">{book.summary}</p>
+                      )}
                     </div>
                   </CardHeader>
 
                   <CardContent className="pb-4">
-                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{book.summary}</p>
+                    {book.summary && (
+                      <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                        {book.summary}
+                      </p>
+                    )}
 
                     <div className="flex items-center gap-4 mb-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
@@ -142,7 +148,9 @@ const FeaturedBooks: React.FC = () => {
                         {[...Array(5)].map((_, i) => (
                           <Star
                             key={i}
-                            className={`h-4 w-4 ${i < 4 ? "text-warning fill-warning" : "text-muted-foreground/30"}`}
+                            className={`h-4 w-4 ${
+                              i < 4 ? "text-warning fill-warning" : "text-muted-foreground/30"
+                            }`}
                           />
                         ))}
                       </div>
@@ -153,7 +161,9 @@ const FeaturedBooks: React.FC = () => {
 
                   <CardFooter className="pt-0 flex items-center justify-between">
                     <div className="flex flex-col">
-                      <span className="text-2xl font-bold text-primary">{formatPrice(book.price)}</span>
+                      <span className="text-2xl font-bold text-primary">
+                        {formatPrice(book.price)}
+                      </span>
                       <span className="text-xs text-muted-foreground">One-time purchase</span>
                     </div>
 
@@ -162,15 +172,13 @@ const FeaturedBooks: React.FC = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => window.open(book.book_url, "_blank")}
+                          onClick={() => window.open(book.book_url!, "_blank")}
                         >
                           Preview
                         </Button>
                       ) : (
                         <Link to={`/books/${book.id}`}>
-                          <Button variant="outline" size="sm">
-                            Preview
-                          </Button>
+                          <Button variant="outline" size="sm">Preview</Button>
                         </Link>
                       )}
                       <Button
@@ -189,9 +197,7 @@ const FeaturedBooks: React.FC = () => {
 
             <div className="text-center mt-12">
               <Link to="/books">
-                <Button variant="medical" size="lg">
-                  View All Books
-                </Button>
+                <Button variant="medical" size="lg">View All Books</Button>
               </Link>
             </div>
           </>

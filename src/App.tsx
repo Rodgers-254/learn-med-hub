@@ -14,7 +14,7 @@ import NotFound from "./pages/NotFound";
 import Books from "./pages/Books";
 import Library from "./pages/Library";
 import TermsOfService from "./pages/TermsOfService";
-import Payment from "./pages/Payment"; // ✅ New payment page
+import Payment from "./pages/payment/Payment"; // ✅ New payment page
 
 import Header from "@/components/Header";
 import { useAuth } from "@/lib/AuthContext";
