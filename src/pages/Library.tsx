@@ -21,7 +21,9 @@ type PurchaseWithBook = {
 
 // Needed only for fallback (no proxy)
 const PROJECT_URL = import.meta.env.VITE_SUPABASE_URL!;
-const READER_ORIGIN = (import.meta.env.VITE_READER_ORIGIN || "").replace(/\/+$/, "");
+// TEMP: hardcode while finishing deployment
+const READER_ORIGIN = "https://bookreader2025.vercel.app/book/";
+
 
 const Library: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([]);
