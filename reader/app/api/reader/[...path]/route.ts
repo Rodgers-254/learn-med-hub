@@ -1,55 +1,65 @@
-// reader/app/api/reader/[...path]/route.ts
 export const runtime = "edge";
+export const dynamic = "force-dynamic";
 
 const PROJECT_URL = process.env.SUPABASE_URL!;
 const BUCKET = "books";
 
-export async function GET(req: Request, ctx: any) {
-  // Next.js will pass { params: { path: string[] } } here.
-  // Keep it flexible to satisfy Next 15’s route typing.
-  const raw = ctx?.params?.path;
-  const pieces: string[] = Array.isArray(raw) ? raw : raw ? [raw] : [];
-  const objectPath = pieces.join("/");
+type Context = {
+  params: {
+    path?: string | string[];
+  };
+};
 
-  // Build upstream public URL in Supabase Storage
-  const qs = new URL(req.url).searchParams.toString();
+export async function GET(req: Request, context: Context): Promise<Response> {
+  const raw = context.params.path;
+  const segments = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  if (segments.length === 0) {
+    return new Response("Missing path", { status: 400 });
+  }
+  const objectPath = segments.join("/");
+
+  const url = new URL(req.url);
   const upstreamUrl =
     `${PROJECT_URL}/storage/v1/object/public/${BUCKET}/` +
     objectPath +
-    (qs ? `?${qs}` : "");
+    (url.search ? url.search : "");
 
   const upstream = await fetch(upstreamUrl, {
-    // Avoid compressed transfer so we can safely read/modify HTML when needed
     headers: { "accept-encoding": "identity" },
   });
 
-  // Copy headers and add caching
   const headers = new Headers(upstream.headers);
-  headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400");
+  headers.set(
+    "Cache-Control",
+    "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400"
+  );
 
-  const ct = headers.get("content-type") ?? "";
-
-  // If it's HTML, inject <base> and rewrite root-absolute refs
-  if (upstream.ok && ct.includes("text/html")) {
+  const contentType = headers.get("content-type") ?? "";
+  if (upstream.ok && contentType.includes("text/html")) {
     let html = await upstream.text();
 
-    // Make relative URLs resolve under our proxy path
+    // set <base> to this API directory so relative assets load via the proxy
     const base = new URL(req.url);
     base.pathname = base.pathname.replace(/\/[^/]*$/, "/");
-    html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${base.toString()}">`);
+    html = html.replace(
+      /<head([^>]*)>/i,
+      `<head$1><base href="${base.toString()}">`
+    );
 
-    // Rewrite "/assets/..." etc. to relative paths
+    // fix root-absolute refs from bundled HTML
     html = html
       .replace(/(href|src)=["']\/assets\//gi, `$1="assets/`)
       .replace(/(href|src)=["']\/favicon\.ico/gi, `$1="favicon.ico`)
       .replace(/(href|src)=["']\/manifest\.json/gi, `$1="manifest.json`)
-      .replace(/(href|src)=["']\/manifest\.webmanifest/gi, `$1="manifest.webmanifest`)
+      .replace(
+        /(href|src)=["']\/manifest\.webmanifest/gi,
+        `$1="manifest.webmanifest`
+      )
       .replace(/(href|src)=["']\/(icons|images|img)\//gi, `$1="$2/`);
 
     headers.delete("content-length");
     return new Response(html, { status: upstream.status, headers });
   }
 
-  // Non-HTML (e.g., JS/CSS/fonts/PDF) – stream through
   return new Response(upstream.body, { status: upstream.status, headers });
 }
