@@ -1,62 +1,60 @@
 export const runtime = "edge";
 
-const PROJECT_URL = process.env.SUPABASE_URL; // must be set in Vercel
-const BUCKET = "books";
+const PROJECT_URL = process.env.SUPABASE_URL;             // e.g. https://xxxx.supabase.co
+const BUCKET = process.env.NEXT_PUBLIC_BOOKS_BUCKET || "books";
 
-// small helper: normalize and prevent path traversal
-function sanitize(p) {
-  const parts = (Array.isArray(p) ? p : [p])
-    .join("/")
-    .replace(/^\/+|\/+$/g, "")
-    .split("/")
-    .filter(seg => seg && seg !== "." && seg !== "..");
-  return parts.join("/");
-}
+// headers we don't want to pass through from Supabase
+const STRIP_HEADERS = [
+  "content-security-policy",
+  "x-frame-options",
+  "cross-origin-opener-policy",
+  "cross-origin-embedder-policy",
+  "cross-origin-resource-policy",
+  "permissions-policy"
+];
 
 export async function GET(req, { params }) {
-  if (!PROJECT_URL) {
-    return new Response("Missing SUPABASE_URL", { status: 500 });
-  }
+  // normalize and sanitize the object path
+  const raw = Array.isArray(params?.path) ? params.path.join("/") : String(params?.path || "");
+  const objectPath = raw.replace(/^\/+|\/+$/g, "");                 // no leading/trailing slashes
 
-  const objectPath = sanitize(params?.path ?? "");
-  if (!objectPath) {
-    return new Response("Missing path", { status: 400 });
-  }
+  // fetch from Supabase public storage
+  const qs = new URL(req.url).searchParams.toString();
+  const upstreamUrl = `${PROJECT_URL}/storage/v1/object/public/${BUCKET}/${objectPath}${qs ? `?${qs}` : ""}`;
 
-  const search = new URL(req.url).search;
-  const upstreamUrl =
-    `${PROJECT_URL.replace(/\/+$/, "")}/storage/v1/object/public/${BUCKET}/` +
-    objectPath + (search || "");
+  const upstream = await fetch(upstreamUrl, { headers: { "accept-encoding": "identity" } });
 
-  const upstream = await fetch(upstreamUrl, {
-    headers: { "accept-encoding": "identity" },
-    cache: "no-store",
-  });
-
-  // clone headers, add caching, and drop restrictive headers
+  // clone headers and strip restrictive ones
   const headers = new Headers(upstream.headers);
+  for (const h of STRIP_HEADERS) headers.delete(h);
+
+  // add a relaxed CSP so the book’s JS/CSS can run
   headers.set(
-    "Cache-Control",
-    "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400"
+    "Content-Security-Policy",
+    [
+      "default-src 'self' blob: data: https:;",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:;",
+      "style-src 'self' 'unsafe-inline' https:;",
+      "img-src 'self' data: blob: https:;",
+      "font-src 'self' data: https:;",
+      "connect-src 'self' https: blob: data:;",
+      "frame-src 'self' https:;"
+    ].join(" ")
   );
-  // **IMPORTANT**: strip headers that sandbox the document
-  headers.delete("content-security-policy");
-  headers.delete("x-frame-options");
-  headers.delete("x-content-type-options"); // let the browser execute scripts/styles
-  headers.delete("content-length"); // we may change body size
+  headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400");
 
-  const ct = (headers.get("content-type") || "").toLowerCase();
+  const ct = headers.get("content-type") || "";
 
-  // If it's HTML, inject a <base> and rewrite root-absolute refs
-  if (upstream.ok && ct.includes("text/html")) {
+  // If it's HTML, inject <base> and rewrite root-absolute references
+  if (upstream.ok && /text\/html/i.test(ct)) {
     let html = await upstream.text();
 
-    // Make all relative paths resolve to this proxy directory
+    // set <base> to the current directory (so relative assets resolve via our proxy)
     const base = new URL(req.url);
     base.pathname = base.pathname.replace(/\/[^/]*$/, "/");
     html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${base.toString()}">`);
 
-    // Fix common root-absolute refs from Vite builds
+    // rewrite /assets, /images, etc. to relative
     html = html
       .replace(/(href|src)=["']\/assets\//gi, `$1="assets/`)
       .replace(/(href|src)=["']\/favicon\.ico/gi, `$1="favicon.ico`)
@@ -64,11 +62,11 @@ export async function GET(req, { params }) {
       .replace(/(href|src)=["']\/manifest\.webmanifest/gi, `$1="manifest.webmanifest`)
       .replace(/(href|src)=["']\/(icons|images|img)\//gi, `$1="$2/`);
 
-    // ensure it's sent as HTML
-    headers.set("content-type", "text/html; charset=utf-8");
-
+    // content length will change
+    headers.delete("content-length");
     return new Response(html, { status: upstream.status, headers });
   }
 
+  // pass through everything else (js/css/fonts/img/pdf…)
   return new Response(upstream.body, { status: upstream.status, headers });
 }
