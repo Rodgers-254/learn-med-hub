@@ -19,8 +19,9 @@ type PurchaseWithBook = {
   books: Book | null;
 };
 
-// Needed to build public base paths for Storage
+// Needed only for fallback (no proxy)
 const PROJECT_URL = import.meta.env.VITE_SUPABASE_URL!;
+const READER_ORIGIN = (import.meta.env.VITE_READER_ORIGIN || "").replace(/\/+$/, "");
 
 const Library: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([]);
@@ -82,9 +83,7 @@ const Library: React.FC = () => {
     })();
   }, []);
 
-  /** Resolve a Storage object path to a URL.
-   *  Prefer public (HEAD-checked), then fall back to a signed URL.
-   */
+  /** FALLBACK: Resolve Storage object to a URL (public -> signed). */
   const resolveObjectUrl = async (objectPath: string): Promise<string | null> => {
     const pub = supabase.storage.from("books").getPublicUrl(objectPath).data?.publicUrl;
     if (pub) {
@@ -93,20 +92,20 @@ const Library: React.FC = () => {
         if (head.ok) return pub;
       } catch { /* ignore */ }
     }
-    const { data: signed, error: sErr } = await supabase
+    const { data: signed } = await supabase
       .storage.from("books")
       .createSignedUrl(objectPath, 60 * 60);
-    if (!sErr && signed?.signedUrl) return signed.signedUrl;
-    return null;
+    return signed?.signedUrl ?? null;
   };
 
+  // Small helper to inject a script before the first <script>
   const injectBeforeFirstScript = (html: string, snippet: string) => {
     const idx = html.search(/<script\b/i);
     if (idx !== -1) return html.slice(0, idx) + snippet + html.slice(idx);
     return html.replace(/<\/head>/i, `${snippet}</head>`);
   };
 
-  // Disable SW registration inside the viewer (blob pages / cross-origin)
+  // Disable service worker registration inside the blob tab (fallback only)
   const SW_SHIM = `<script>
     try {
       if (navigator.serviceWorker) {
@@ -122,40 +121,44 @@ const Library: React.FC = () => {
   const openBook = async (book: Book) => {
     setOpeningId(book.id);
     try {
-      // A) If a direct absolute URL was stored (PDF or hosted site), just open it
+      // A) Full direct link stored? open it
       if (book.book_url && /^https?:\/\//i.test(book.book_url)) {
         window.open(book.book_url, "_blank", "noopener,noreferrer");
         return;
       }
 
-      // B) Build from storage_folder
-      const rawFolder = (book.storage_folder ?? "").trim();
-      if (!rawFolder) {
+      // B) from Storage path
+      const raw = (book.storage_folder ?? "").trim().replace(/^\/+|\/+$/g, "");
+      if (!raw) {
         alert("This book does not have a storage path yet.");
         return;
       }
 
-      const hasExt = /\.[a-z0-9]+$/i.test(rawFolder);
-      const baseFolder = rawFolder.replace(/^\/+|\/+$/g, ""); // trim leading/trailing slashes
+      // ---- Preferred path: use proxy on the reader app ----
+      if (READER_ORIGIN) {
+        const hasExt = /\.[a-z0-9]+$/i.test(raw);
+        const key = encodeURI(hasExt ? raw : `${raw}/index.html`);
+        const url = `${READER_ORIGIN}/api/reader/${key}`;
+        window.open(url, "_blank", "noopener,noreferrer");
+        return;
+      }
 
+      // ---- Fallback if READER_ORIGIN not set: inline viewer via blob ----
+      const hasExt = /\.[a-z0-9]+$/i.test(raw);
+      const baseFolder = raw;
       const candidates: string[] = hasExt
-        ? [baseFolder] // exact file specified (e.g., foo/book.pdf or foo/index.html)
-        : [
-            `${baseFolder}/index.html`,
-            `${baseFolder}/dist/index.html`,
-          ];
+        ? [baseFolder]
+        : [`${baseFolder}/index.html`, `${baseFolder}/dist/index.html`];
 
       for (const objectPath of candidates) {
         const fileUrl = await resolveObjectUrl(objectPath);
         if (!fileUrl) continue;
 
-        // Non-HTML (PDF, etc.)
         if (!/\.html?$/i.test(objectPath)) {
           window.open(fileUrl, "_blank", "noopener,noreferrer");
           return;
         }
 
-        // HTML: fetch, add <base>, rewrite root-absolute refs, and inject SW shim
         const res = await fetch(fileUrl, { cache: "no-store" });
         if (!res.ok) continue;
 
@@ -167,27 +170,22 @@ const Library: React.FC = () => {
           (hasExt ? baseFolder.replace(/\/[^/]*$/, "") : baseFolder) +
           "/";
 
-        // Inject base
+        // Inject base + rewrite absolute refs + disable SW
         html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${publicBaseDir}">`);
-
-        // Rewrite root-absolute to relative paths
         html = html
           .replace(/(href|src)=["']\/assets\//gi, `$1="assets/`)
           .replace(/(href|src)=["']\/favicon\.ico/gi, `$1="favicon.ico`)
           .replace(/(href|src)=["']\/manifest\.json/gi, `$1="manifest.json`)
           .replace(/(href|src)=["']\/manifest\.webmanifest/gi, `$1="manifest.webmanifest`)
           .replace(/(href|src)=["']\/(icons|images|img)\//gi, `$1="$2/`);
-
-        // Inject SW shim before the first script so the app doesn't crash
         html = injectBeforeFirstScript(html, SW_SHIM);
 
-        // Open in a blob (avoids Supabase viewer CSP/sandbox)
         const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
         window.open(blobUrl, "_blank", "noopener,noreferrer");
         return;
       }
 
-      alert("Book file not found in Storage. Check the 'storage_folder' and ensure index.html (or dist/index.html) exists.");
+      alert("Book file not found in Storage. Check the 'storage_folder' and ensure index.html exists.");
     } catch (err) {
       console.error("openBook error:", err);
       alert("An error occurred while opening the book. Please allow popups and try again.");
