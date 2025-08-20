@@ -1,52 +1,39 @@
 // reader/app/api/reader/[...path]/route.ts
-import type { NextRequest } from "next/server";
-
-export const runtime = "edge"; // run on the edge for snappy streaming
+export const runtime = "edge";
 
 const PROJECT_URL = process.env.SUPABASE_URL!;
 const BUCKET = "books";
 
-/**
- * GET /api/reader/<...path>
- * Proxies files from Supabase Storage (public "books" bucket).
- * For HTML, we inject a <base> and rewrite root-absolute refs so relative assets load.
- */
 export async function GET(
-  req: NextRequest,
-  context: { params: { path: string[] } }  // <-- exact type required by Next
+  req: Request,
+  { params }: { params: { path: string | string[] } } // <- union, not just string[]
 ) {
-  const pieces = context.params.path;
-  const objectPath = pieces.join("/"); // e.g. "ogindo-kenya-manual/index.html"
+  const pieces = Array.isArray(params.path)
+    ? params.path
+    : [params.path]; // normalize to array
 
-  // Build public object URL (we use public bucket)
+  const objectPath = pieces.join("/");
+
   const upstreamUrl =
     `${PROJECT_URL}/storage/v1/object/public/${BUCKET}/` +
     objectPath +
-    (req.nextUrl.search ? `?${req.nextUrl.searchParams.toString()}` : "");
+    (req.url.includes("?") ? `?${new URL(req.url).searchParams.toString()}` : "");
 
-  const upstream = await fetch(upstreamUrl, {
-    // ensure proper streaming
-    headers: { "accept-encoding": "identity" },
-  });
+  const upstream = await fetch(upstreamUrl, { headers: { "accept-encoding": "identity" } });
 
-  // Pass-through most headers, add cache
   const headers = new Headers(upstream.headers);
   headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400");
 
-  // If it’s HTML, inject <base> and rewrite root-absolute URLs
-  const ct = headers.get("content-type") || "";
+  const ct = headers.get("content-type") ?? "";
   if (upstream.ok && ct.includes("text/html")) {
     let html = await upstream.text();
 
-    // Base to the current API path so relative assets resolve here
-    const selfBase = new URL(req.url);
-    selfBase.pathname = selfBase.pathname.replace(/\/[^/]*$/, "/"); // keep directory only
+    // Set <base> to this API directory (so relative assets load under our proxy)
+    const base = new URL(req.url);
+    base.pathname = base.pathname.replace(/\/[^/]*$/, "/");
+    html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${base.toString()}">`);
 
-    // 1) Inject <base>
-    html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${selfBase.toString()}">`);
-
-    // 2) Rewrite root-absolute to relative
-    //    "/assets/..." -> "assets/...", "/favicon.ico" -> "favicon.ico", etc.
+    // Fix root-absolute refs from the bundled HTML
     html = html
       .replace(/(href|src)=["']\/assets\//gi, `$1="assets/`)
       .replace(/(href|src)=["']\/favicon\.ico/gi, `$1="favicon.ico`)
@@ -58,9 +45,5 @@ export async function GET(
     return new Response(html, { status: upstream.status, headers });
   }
 
-  // Non-HTML (JS/CSS/images/PDF) — stream through
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers,
-  });
+  return new Response(upstream.body, { status: upstream.status, headers });
 }
