@@ -21,9 +21,12 @@ type PurchaseWithBook = {
 
 // Needed only for fallback (no proxy)
 const PROJECT_URL = import.meta.env.VITE_SUPABASE_URL!;
-// TEMP: hardcode while finishing deployment
-const READER_ORIGIN = "https://bookreader2025.vercel.app/book/";
 
+// Preferred: set VITE_READER_BASE in env (e.g. https://bookreader2025.vercel.app/book)
+// Hard-coded fallback kept for now so you can ship today.
+const READER_BASE =
+  (import.meta.env.VITE_READER_BASE as string | undefined)?.replace(/\/+$/, "") ||
+  "https://bookreader2025.vercel.app/book";
 
 const Library: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([]);
@@ -136,16 +139,17 @@ const Library: React.FC = () => {
         return;
       }
 
-      // ---- Preferred path: use proxy on the reader app ----
-      if (READER_ORIGIN) {
+      // ---- Preferred path: use the reader proxy (/book/:path -> /api/reader/:path) ----
+      if (READER_BASE) {
         const hasExt = /\.[a-z0-9]+$/i.test(raw);
         const key = encodeURI(hasExt ? raw : `${raw}/index.html`);
-        const url = `${READER_ORIGIN}/api/reader/${key}`;
+        // IMPORTANT: do NOT add /api/reader here; the Vercel rewrite handles that.
+        const url = `${READER_BASE}/${key}`;
         window.open(url, "_blank", "noopener,noreferrer");
         return;
       }
 
-      // ---- Fallback if READER_ORIGIN not set: inline viewer via blob ----
+      // ---- Fallback if READER_BASE not set: inline viewer via blob ----
       const hasExt = /\.[a-z0-9]+$/i.test(raw);
       const baseFolder = raw;
       const candidates: string[] = hasExt
