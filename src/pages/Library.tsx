@@ -19,14 +19,12 @@ type PurchaseWithBook = {
   books: Book | null;
 };
 
-// Needed only for fallback (no proxy)
+// For constructing public base paths when we render HTML via blob (fallback)
 const PROJECT_URL = import.meta.env.VITE_SUPABASE_URL!;
 
-// Preferred: set VITE_READER_BASE in env (e.g. https://bookreader2025.vercel.app/book)
-// Hard-coded fallback kept for now so you can ship today.
-const READER_BASE =
-  (import.meta.env.VITE_READER_BASE as string | undefined)?.replace(/\/+$/, "") ||
-  "https://bookreader2025.vercel.app/book";
+// Reader proxy public base (optional; used only if signed/public URL path fails)
+// Example: https://bookreader2025.vercel.app/book/
+const READER_BASE = ((import.meta.env.VITE_READER_BASE as string) || "https://bookreader2025.vercel.app/book/").replace(/\/+$/, "") + "/";
 
 const Library: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([]);
@@ -88,8 +86,11 @@ const Library: React.FC = () => {
     })();
   }, []);
 
-  /** FALLBACK: Resolve Storage object to a URL (public -> signed). */
+  /** Resolve a Storage object path to a URL.
+   *  Prefer public (HEAD-checked), then fall back to a signed URL.
+   */
   const resolveObjectUrl = async (objectPath: string): Promise<string | null> => {
+    // Try public
     const pub = supabase.storage.from("books").getPublicUrl(objectPath).data?.publicUrl;
     if (pub) {
       try {
@@ -97,20 +98,21 @@ const Library: React.FC = () => {
         if (head.ok) return pub;
       } catch { /* ignore */ }
     }
+    // Fallback signed
     const { data: signed } = await supabase
       .storage.from("books")
-      .createSignedUrl(objectPath, 60 * 60);
+      .createSignedUrl(objectPath, 60 * 60); // 1 hour
     return signed?.signedUrl ?? null;
   };
 
-  // Small helper to inject a script before the first <script>
+  // Inject a snippet before the first <script> in an HTML string
   const injectBeforeFirstScript = (html: string, snippet: string) => {
     const idx = html.search(/<script\b/i);
     if (idx !== -1) return html.slice(0, idx) + snippet + html.slice(idx);
     return html.replace(/<\/head>/i, `${snippet}</head>`);
   };
 
-  // Disable service worker registration inside the blob tab (fallback only)
+  // Disable SW registration inside our viewer blob (prevents PWA SW errors)
   const SW_SHIM = `<script>
     try {
       if (navigator.serviceWorker) {
@@ -126,57 +128,49 @@ const Library: React.FC = () => {
   const openBook = async (book: Book) => {
     setOpeningId(book.id);
     try {
-      // A) Full direct link stored? open it
+      // 1) Direct absolute link provided? Use it.
       if (book.book_url && /^https?:\/\//i.test(book.book_url)) {
         window.open(book.book_url, "_blank", "noopener,noreferrer");
         return;
       }
 
-      // B) from Storage path
+      // Normalize storage key
       const raw = (book.storage_folder ?? "").trim().replace(/^\/+|\/+$/g, "");
       if (!raw) {
         alert("This book does not have a storage path yet.");
         return;
       }
 
-      // ---- Preferred path: use the reader proxy (/book/:path -> /api/reader/:path) ----
-      if (READER_BASE) {
-        const hasExt = /\.[a-z0-9]+$/i.test(raw);
-        const key = encodeURI(hasExt ? raw : `${raw}/index.html`);
-        // IMPORTANT: do NOT add /api/reader here; the Vercel rewrite handles that.
-        const url = `${READER_BASE}/${key}`;
-        window.open(url, "_blank", "noopener,noreferrer");
-        return;
-      }
-
-      // ---- Fallback if READER_BASE not set: inline viewer via blob ----
       const hasExt = /\.[a-z0-9]+$/i.test(raw);
-      const baseFolder = raw;
+      const baseKey = raw;
       const candidates: string[] = hasExt
-        ? [baseFolder]
-        : [`${baseFolder}/index.html`, `${baseFolder}/dist/index.html`];
+        ? [baseKey]
+        : [`${baseKey}/index.html`, `${baseKey}/dist/index.html`];
 
+      // 2) DEFAULT PATH: open via public/signed URL (no proxy)
       for (const objectPath of candidates) {
-        const fileUrl = await resolveObjectUrl(objectPath);
-        if (!fileUrl) continue;
+        const url = await resolveObjectUrl(objectPath);
+        if (!url) continue;
 
+        // Non-HTML assets (PDF, etc.) → open directly
         if (!/\.html?$/i.test(objectPath)) {
-          window.open(fileUrl, "_blank", "noopener,noreferrer");
+          window.open(url, "_blank", "noopener,noreferrer");
           return;
         }
 
-        const res = await fetch(fileUrl, { cache: "no-store" });
+        // HTML → fetch, rewrite, shim, open in blob:
+        const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) continue;
 
         let html = await res.text();
 
-        // Public base path so all relative assets load from Storage
+        // Compute public base for relative assets
         const publicBaseDir =
           `${PROJECT_URL}/storage/v1/object/public/books/` +
-          (hasExt ? baseFolder.replace(/\/[^/]*$/, "") : baseFolder) +
+          (hasExt ? baseKey.replace(/\/[^/]*$/, "") : baseKey) +
           "/";
 
-        // Inject base + rewrite absolute refs + disable SW
+        // Fix base + root-absolute refs + SW
         html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${publicBaseDir}">`);
         html = html
           .replace(/(href|src)=["']\/assets\//gi, `$1="assets/`)
@@ -191,7 +185,9 @@ const Library: React.FC = () => {
         return;
       }
 
-      alert("Book file not found in Storage. Check the 'storage_folder' and ensure index.html exists.");
+      // 3) FINAL FALLBACK: reader proxy (/book/:path → rewrite → /api/reader/:path)
+      const key = encodeURI(hasExt ? baseKey : `${baseKey}/index.html`);
+      window.open(`${READER_BASE}${key}`, "_blank", "noopener,noreferrer");
     } catch (err) {
       console.error("openBook error:", err);
       alert("An error occurred while opening the book. Please allow popups and try again.");
