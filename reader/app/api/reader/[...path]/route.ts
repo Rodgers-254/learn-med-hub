@@ -4,18 +4,12 @@ export const dynamic = "force-dynamic";
 const PROJECT_URL = process.env.SUPABASE_URL!;
 const BUCKET = "books";
 
-type Context = {
-  params: {
-    path?: string | string[];
-  };
-};
-
-export async function GET(req: Request, context: Context): Promise<Response> {
-  const raw = context.params.path;
-  const segments = Array.isArray(raw) ? raw : raw ? [raw] : [];
-  if (segments.length === 0) {
-    return new Response("Missing path", { status: 400 });
-  }
+export async function GET(
+  req: Request,
+  { params }: { params: { path: string[] } } // <- inline, exact type
+): Promise<Response> {
+  // Next guarantees string[] for a [...path] segment
+  const segments = params.path;
   const objectPath = segments.join("/");
 
   const url = new URL(req.url);
