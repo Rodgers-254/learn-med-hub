@@ -19,12 +19,14 @@ type PurchaseWithBook = {
   books: Book | null;
 };
 
-// For constructing public base paths when we render HTML via blob (fallback)
+// Public base for blob viewer only
 const PROJECT_URL = import.meta.env.VITE_SUPABASE_URL!;
 
-// Reader proxy public base (optional; used only if signed/public URL path fails)
-// Example: https://bookreader2025.vercel.app/book/
-const READER_BASE = ((import.meta.env.VITE_READER_BASE as string) || "https://bookreader2025.vercel.app/book/").replace(/\/+$/, "") + "/";
+// Reader proxy base. Keep it as *origin or path that ends in /book/*
+const READER_BASE = (
+  (import.meta.env.VITE_READER_BASE as string) ||
+  "https://bookreader2025.vercel.app/book/"
+).replace(/\/+$/, "") + "/";
 
 const Library: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([]);
@@ -86,11 +88,8 @@ const Library: React.FC = () => {
     })();
   }, []);
 
-  /** Resolve a Storage object path to a URL.
-   *  Prefer public (HEAD-checked), then fall back to a signed URL.
-   */
+  /** Resolve a Storage object path to a URL. Prefer public, fall back to signed. */
   const resolveObjectUrl = async (objectPath: string): Promise<string | null> => {
-    // Try public
     const pub = supabase.storage.from("books").getPublicUrl(objectPath).data?.publicUrl;
     if (pub) {
       try {
@@ -98,79 +97,77 @@ const Library: React.FC = () => {
         if (head.ok) return pub;
       } catch { /* ignore */ }
     }
-    // Fallback signed
     const { data: signed } = await supabase
       .storage.from("books")
-      .createSignedUrl(objectPath, 60 * 60); // 1 hour
+      .createSignedUrl(objectPath, 60 * 60);
     return signed?.signedUrl ?? null;
   };
 
-  // Inject a snippet before the first <script> in an HTML string
+  /** Inject <snippet> before first <script> in HTML. */
   const injectBeforeFirstScript = (html: string, snippet: string) => {
     const idx = html.search(/<script\b/i);
-    if (idx !== -1) return html.slice(0, idx) + snippet + html.slice(idx);
-    return html.replace(/<\/head>/i, `${snippet}</head>`);
+    return idx !== -1 ? html.slice(0, idx) + snippet + html.slice(idx)
+                      : html.replace(/<\/head>/i, `${snippet}</head>`);
   };
 
-  // Disable SW registration inside our viewer blob (prevents PWA SW errors)
+  /** Disable SW registration inside viewer tab. */
   const SW_SHIM = `<script>
     try {
       if (navigator.serviceWorker) {
-        const _orig = navigator.serviceWorker.register?.bind(navigator.serviceWorker);
-        navigator.serviceWorker.register = async function() {
+        const orig = navigator.serviceWorker.register?.bind(navigator.serviceWorker);
+        navigator.serviceWorker.register = async function () {
           console.warn("Service worker registration suppressed in viewer.");
           return { addEventListener: function(){} };
         };
       }
-    } catch(e) { console.warn("SW shim error", e); }
+    } catch (e) { console.warn("SW shim error", e); }
   </script>`;
 
   const openBook = async (book: Book) => {
     setOpeningId(book.id);
     try {
-      // 1) Direct absolute link provided? Use it.
+      // A) Direct absolute URL stored? Use it.
       if (book.book_url && /^https?:\/\//i.test(book.book_url)) {
         window.open(book.book_url, "_blank", "noopener,noreferrer");
         return;
       }
 
-      // Normalize storage key
-      const raw = (book.storage_folder ?? "").trim().replace(/^\/+|\/+$/g, "");
-      if (!raw) {
+      // B) Build from storage_folder
+      const keyRaw = (book.storage_folder ?? "").trim().replace(/^\/+|\/+$/g, "");
+      if (!keyRaw) {
         alert("This book does not have a storage path yet.");
         return;
       }
 
-      const hasExt = /\.[a-z0-9]+$/i.test(raw);
-      const baseKey = raw;
-      const candidates: string[] = hasExt
-        ? [baseKey]
-        : [`${baseKey}/index.html`, `${baseKey}/dist/index.html`];
+      const isFile = /\.[a-z0-9]+$/i.test(keyRaw);
+      const candidates = isFile
+        ? [keyRaw]
+        : [`${keyRaw}/index.html`, `${keyRaw}/dist/index.html`];
 
-      // 2) DEFAULT PATH: open via public/signed URL (no proxy)
+      // Preferred path: no-proxy (public or signed) -> modify -> blob
       for (const objectPath of candidates) {
-        const url = await resolveObjectUrl(objectPath);
-        if (!url) continue;
+        const fileUrl = await resolveObjectUrl(objectPath);
+        if (!fileUrl) continue;
 
-        // Non-HTML assets (PDF, etc.) → open directly
+        // Non-HTML: open directly
         if (!/\.html?$/i.test(objectPath)) {
-          window.open(url, "_blank", "noopener,noreferrer");
+          window.open(fileUrl, "_blank", "noopener,noreferrer");
           return;
         }
 
-        // HTML → fetch, rewrite, shim, open in blob:
-        const res = await fetch(url, { cache: "no-store" });
+        // HTML: fetch and transform for safe viewing
+        const res = await fetch(fileUrl, { cache: "no-store" });
         if (!res.ok) continue;
 
         let html = await res.text();
 
-        // Compute public base for relative assets
+        // Public base for relative assets
         const publicBaseDir =
           `${PROJECT_URL}/storage/v1/object/public/books/` +
-          (hasExt ? baseKey.replace(/\/[^/]*$/, "") : baseKey) +
+          (isFile ? keyRaw.replace(/\/[^/]*$/, "") : keyRaw) +
           "/";
 
-        // Fix base + root-absolute refs + SW
+        // Set <base>, rewrite root-absolute refs, add SW shim
         html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${publicBaseDir}">`);
         html = html
           .replace(/(href|src)=["']\/assets\//gi, `$1="assets/`)
@@ -185,9 +182,9 @@ const Library: React.FC = () => {
         return;
       }
 
-      // 3) FINAL FALLBACK: reader proxy (/book/:path → rewrite → /api/reader/:path)
-      const key = encodeURI(hasExt ? baseKey : `${baseKey}/index.html`);
-      window.open(`${READER_BASE}${key}`, "_blank", "noopener,noreferrer");
+      // Final fallback: reader proxy (Vercel rewrite /book/* -> /api/reader/*)
+      const finalKey = encodeURI(isFile ? keyRaw : `${keyRaw}/index.html`);
+      window.open(`${READER_BASE}${finalKey}`, "_blank", "noopener,noreferrer");
     } catch (err) {
       console.error("openBook error:", err);
       alert("An error occurred while opening the book. Please allow popups and try again.");
