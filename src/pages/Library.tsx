@@ -88,32 +88,31 @@ const Library: React.FC = () => {
     })();
   }, []);
 
-  // keep your READER_BASE constant as you have it
-// const READER_BASE = ((import.meta.env.VITE_READER_BASE as string) || "https://bookreader2025.vercel.app/book/").replace(/\/+$/, "") + "/";
+  const openBook = async (book: Book) => {
+    setOpeningId(book.id);
+    try {
+      // 1. If book_url is an external link (like PDF)
+      if (book.book_url && /^https?:\/\//i.test(book.book_url)) {
+        window.open(book.book_url, "_blank", "noopener,noreferrer");
+        return;
+      }
 
-const READER_BASE = (
-  (import.meta.env.VITE_READER_BASE as string) ||
-  "https://bookreader2025.vercel.app/book/"
-).replace(/\/+$/, "") + "/";
+      // 2. Local testing: always open root index.html
+      if (import.meta.env.DEV) {
+        window.open("http://localhost:4173/", "_blank", "noopener,noreferrer");
+        return;
+      }
 
-const openBook = async (book: Book) => {
-  setOpeningId(book.id);
-  try {
-    if (book.book_url && /^https?:\/\//i.test(book.book_url)) {
-      window.open(book.book_url, "_blank", "noopener,noreferrer");
-      return;
+      // 3. Production: build path normally
+      const key = (book.storage_folder ?? "").trim().replace(/^\/+|\/+$/g, "");
+      if (!key) { alert("This book does not have a storage path yet."); return; }
+      const hasExt = /\.[a-z0-9]+$/i.test(key);
+      const path = encodeURI(hasExt ? key : `${key}/index.html`);
+      window.open(`${READER_BASE}${path}`, "_blank", "noopener,noreferrer");
+    } finally {
+      setOpeningId(null);
     }
-    const key = (book.storage_folder ?? "").trim().replace(/^\/+|\/+$/g, "");
-    if (!key) { alert("This book does not have a storage path yet."); return; }
-    const hasExt = /\.[a-z0-9]+$/i.test(key);
-    const path = encodeURI(hasExt ? key : `${key}/index.html`);
-    window.open(`${READER_BASE}${path}`, "_blank", "noopener,noreferrer");
-  } finally {
-    setOpeningId(null);
-  }
-};
-
-
+  };
 
   if (loading) return <div className="p-6">Loading your library…</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;

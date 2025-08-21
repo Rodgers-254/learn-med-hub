@@ -1,3 +1,11 @@
 {
-  "rewrites": [{ "source": "/book/(.*)", "destination": "/api/reader/$1" }]
+  "rewrites": [
+    { "source": "/book/ogindo-kenya-manual/(.*)", "destination": "/book/ogindo-kenya-manual/$1" }
+  ],
+  "headers": [
+    {
+      "source": "/book/ogindo-kenya-manual/(.*).html",
+      "headers": [{ "key": "Content-Type", "value": "text/html" }]
+    }
+  ]
 }
