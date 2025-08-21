@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/book/:path*", "destination": "/api/reader/:path*" }
+    { "source": "/book/(.*)", "destination": "/api/reader/$1" }
   ]
 }
