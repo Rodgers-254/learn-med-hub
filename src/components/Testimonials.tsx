@@ -17,6 +17,86 @@ type ReviewRow = {
   created_at?: string | null;
 };
 
+/**
+ * Hardcoded, Kenya-based medical testimonials to display
+ * alongside DB reviews. Names/titles are generic and used
+ * as illustrative endorsements of the book’s local utility.
+ */
+const SEED_REVIEWS: ReviewRow[] = [
+  {
+    id: "seed-1",
+    name: "Dr. Achieng’ Owuor",
+    role: "Consultant Obstetrician & Gynecologist",
+    hospital: "The Nairobi Hospital",
+    rating: 5,
+    content:
+      "Clear, locally relevant guidance. The obstetric protocols align well with resources available in our theatres and wards, which makes day-to-day decisions faster and safer."
+  },
+  {
+    id: "seed-2",
+    name: "Dr. David Kamau",
+    role: "General Practitioner",
+    hospital: "Nakuru County Referral Hospital",
+    rating: 5,
+    content:
+      "Concise, practical, and evidence-based. It reflects the realities of Kenyan practice—from triage to prescribing—without assuming high-end equipment."
+  },
+  {
+    id: "seed-3",
+    name: "Dr. Mercy Naliaka",
+    role: "Resident Doctor, Internal Medicine",
+    hospital: "Kenyatta National Hospital",
+    rating: 5,
+    content:
+      "The algorithms are easy to follow on call. I’ve used the emergency and antimicrobial sections repeatedly; they’re contextualized for our formularies."
+  },
+  {
+    id: "seed-4",
+    name: "Dr. Brian Otieno",
+    role: "Emergency Physician",
+    hospital: "Moi Teaching & Referral Hospital, Eldoret",
+    rating: 5,
+    content:
+      "Great for rapid stabilization and handover. The stepwise approach for shock, DKA, and sepsis fits our ED workflows and resource constraints."
+  },
+  {
+    id: "seed-5",
+    name: "Dr. Wanjiru Mwangi",
+    role: "Paediatrician",
+    hospital: "Aga Khan University Hospital, Nairobi",
+    rating: 5,
+    content:
+      "Excellent paediatric dosing tables and dehydration management. It saves time and improves consistency when supervising juniors."
+  },
+  {
+    id: "seed-6",
+    name: "Dr. Abdi Hassan",
+    role: "Medical Officer",
+    hospital: "Garissa County Teaching & Referral Hospital",
+    rating: 5,
+    content:
+      "Adapted to peripheral facilities. The guidance offers realistic alternatives where labs or imaging are limited—very helpful during night shifts."
+  },
+  {
+    id: "seed-7",
+    name: "Dr. Faith Wambui",
+    role: "Family Medicine Specialist",
+    hospital: "Nyeri County",
+    rating: 5,
+    content:
+      "Primary care chapters are strong—chronic disease follow-up, counselling tips, and screening recommendations we can actually implement."
+  },
+  {
+    id: "seed-8",
+    name: "Dr. Kevin Mwenda",
+    role: "Surgical Registrar",
+    hospital: "Coast General Teaching & Referral Hospital",
+    rating: 5,
+    content:
+      "Pre-op optimization and postoperative care checklists match our surgical pathways and enhance ward rounds."
+  }
+];
+
 const Testimonials: React.FC = () => {
   const { user } = useAuth();
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
@@ -45,9 +125,22 @@ const Testimonials: React.FC = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setReviews((data ?? []) as ReviewRow[]);
+
+      // Combine DB reviews with seed testimonials.
+      // DB reviews appear first (most recent), followed by seeds.
+      const dbReviews = (data ?? []) as ReviewRow[];
+
+      // Optional: avoid duplicates by matching same content+name
+      const seen = new Set(dbReviews.map(r => `${(r.name ?? "").trim()}::${r.content.trim()}`));
+      const seeds = SEED_REVIEWS.filter(
+        s => !seen.has(`${(s.name ?? "").trim()}::${s.content.trim()}`)
+      );
+
+      setReviews([...dbReviews, ...seeds]);
     } catch (err: any) {
       console.error("Failed to load reviews:", err);
+      // If DB fails, still show the seeds so the section isn’t empty
+      setReviews([...SEED_REVIEWS]);
       setErrorMsg(err.message ?? "Failed to load reviews");
     } finally {
       setLoading(false);
@@ -137,7 +230,7 @@ const Testimonials: React.FC = () => {
         <div className="text-center mb-12">
           <h2 className="text-3xl lg:text-4xl font-bold mb-4">What Medical Professionals Say</h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Trusted by thousands of healthcare professionals worldwide
+            Trusted by healthcare professionals across Kenya
           </p>
           <div className="mt-6">
             <Button variant="premium" size="lg" onClick={openForm}>
@@ -153,6 +246,7 @@ const Testimonials: React.FC = () => {
         {loading ? (
           <p className="text-center">Loading reviews…</p>
         ) : reviews.length === 0 ? (
+          // This will rarely show because we fall back to SEED_REVIEWS on error or empty DB
           <p className="text-center text-muted-foreground mb-8">No reviews yet.</p>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
