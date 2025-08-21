@@ -91,30 +91,28 @@ const Library: React.FC = () => {
   // keep your READER_BASE constant as you have it
 // const READER_BASE = ((import.meta.env.VITE_READER_BASE as string) || "https://bookreader2025.vercel.app/book/").replace(/\/+$/, "") + "/";
 
+const READER_BASE = (
+  (import.meta.env.VITE_READER_BASE as string) ||
+  "https://bookreader2025.vercel.app/book/"
+).replace(/\/+$/, "") + "/";
+
 const openBook = async (book: Book) => {
   setOpeningId(book.id);
   try {
-    // If you manually stored a full URL (pdf, external site), use it:
     if (book.book_url && /^https?:\/\//i.test(book.book_url)) {
       window.open(book.book_url, "_blank", "noopener,noreferrer");
       return;
     }
-
-    const keyRaw = (book.storage_folder ?? "").trim().replace(/^\/+|\/+$/g, "");
-    if (!keyRaw) {
-      alert("This book does not have a storage path yet.");
-      return;
-    }
-
-    const hasExt = /\.[a-z0-9]+$/i.test(keyRaw);
-    const path = encodeURI(hasExt ? keyRaw : `${keyRaw}/index.html`);
-
-    // IMPORTANT: always go through the proxy on the reader app
+    const key = (book.storage_folder ?? "").trim().replace(/^\/+|\/+$/g, "");
+    if (!key) { alert("This book does not have a storage path yet."); return; }
+    const hasExt = /\.[a-z0-9]+$/i.test(key);
+    const path = encodeURI(hasExt ? key : `${key}/index.html`);
     window.open(`${READER_BASE}${path}`, "_blank", "noopener,noreferrer");
   } finally {
     setOpeningId(null);
   }
 };
+
 
 
   if (loading) return <div className="p-6">Loading your library…</div>;
